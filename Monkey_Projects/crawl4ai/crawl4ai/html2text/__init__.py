@@ -1,29 +1,54 @@
 """html2text: Turn HTML into equivalent Markdown-structured text."""
 
+# 导入html实体
 import html.entities
+# 导入html解析器
 import html.parser
+# 导入正则表达式
 import re
+# 导入字符串
 import string
-import urllib.parse as urlparse
+# 导入url解析器
+from urllib.parse import urlparse
+# 导入文本包装器
 from textwrap import wrap
+# 导入类型提示
 from typing import Dict, List, Optional, Tuple, Union
 
+# 从当前目录导入配置
 from . import config
+# 从当前目录导入类型提示
 from ._typing import OutCallback
+# 从当前目录导入元素
 from .elements import AnchorElement, ListElement
+# 从当前目录导入工具
+# 从当前目录下的utils模块中导入以下函数
 from .utils import (
+    # 智障CSS解析器
     dumb_css_parser,
+    # 元素样式
     element_style,
+    # 转义Markdown
     escape_md,
+    # 转义Markdown部分
     escape_md_section,
+    # 谷歌固定宽度字体
     google_fixed_width_font,
+    # 谷歌是否有高度
     google_has_height,
+    # 谷歌列表样式
     google_list_style,
+    # 谷歌文本强调
     google_text_emphasis,
+    # HN
     hn,
+    # 列表编号起始值
     list_numbering_start,
+    # 在文本中填充表格
     pad_tables_in_text,
+    # 跳过包装
     skipwrap,
+    # 可统一化n
     unifiable_n,
 )
 
@@ -49,53 +74,56 @@ class HTML2Text(html.parser.HTMLParser):
         """
         super().__init__(convert_charrefs=False)
 
-        # Config options
-        self.split_next_td = False
-        self.td_count = 0
-        self.table_start = False
-        self.unicode_snob = config.UNICODE_SNOB  # covered in cli
-        
-        self.escape_snob = config.ESCAPE_SNOB  # covered in cli
-        self.escape_backslash = config.ESCAPE_BACKSLASH  # covered in cli
-        self.escape_dot = config.ESCAPE_DOT  # covered in cli
-        self.escape_plus = config.ESCAPE_PLUS  # covered in cli
-        self.escape_dash = config.ESCAPE_DASH  # covered in cli
-        
-        self.links_each_paragraph = config.LINKS_EACH_PARAGRAPH
-        self.body_width = bodywidth  # covered in cli
-        self.skip_internal_links = config.SKIP_INTERNAL_LINKS  # covered in cli
-        self.inline_links = config.INLINE_LINKS  # covered in cli
-        self.protect_links = config.PROTECT_LINKS  # covered in cli
-        self.google_list_indent = config.GOOGLE_LIST_INDENT  # covered in cli
-        self.ignore_links = config.IGNORE_ANCHORS  # covered in cli
-        self.ignore_mailto_links = config.IGNORE_MAILTO_LINKS  # covered in cli
-        self.ignore_images = config.IGNORE_IMAGES  # covered in cli
-        self.images_as_html = config.IMAGES_AS_HTML  # covered in cli
-        self.images_to_alt = config.IMAGES_TO_ALT  # covered in cli
-        self.images_with_size = config.IMAGES_WITH_SIZE  # covered in cli
-        self.ignore_emphasis = config.IGNORE_EMPHASIS  # covered in cli
-        self.bypass_tables = config.BYPASS_TABLES  # covered in cli
-        self.ignore_tables = config.IGNORE_TABLES  # covered in cli
-        self.google_doc = False  # covered in cli
-        self.ul_item_mark = "*"  # covered in cli
-        self.emphasis_mark = "_"  # covered in cli
-        self.strong_mark = "**"
-        self.single_line_break = config.SINGLE_LINE_BREAK  # covered in cli
-        self.use_automatic_links = config.USE_AUTOMATIC_LINKS  # covered in cli
-        self.hide_strikethrough = False  # covered in cli
-        self.mark_code = config.MARK_CODE
-        self.wrap_list_items = config.WRAP_LIST_ITEMS  # covered in cli
-        self.wrap_links = config.WRAP_LINKS  # covered in cli
-        self.wrap_tables = config.WRAP_TABLES
-        self.pad_tables = config.PAD_TABLES  # covered in cli
-        self.default_image_alt = config.DEFAULT_IMAGE_ALT  # covered in cli
-        self.tag_callback = None
-        self.open_quote = config.OPEN_QUOTE  # covered in cli
-        self.close_quote = config.CLOSE_QUOTE  # covered in cli
-        self.include_sup_sub = config.INCLUDE_SUP_SUB  # covered in cli
+        # 配置选项
+        self.split_next_td = False  # 是否在下一个 td 标签处分割
+        self.td_count = 0  # 当前 td 标签计数
+        self.table_start = False  # 表格是否开始
+        self.unicode_snob = config.UNICODE_SNOB  # 是否使用 Unicode 字符，
 
+        self.escape_snob = config.ESCAPE_SNOB  # 是否转义特殊字符，
+        self.escape_backslash = config.ESCAPE_BACKSLASH  # 是否转义反斜杠，
+        self.escape_dot = config.ESCAPE_DOT  # 是否转义点号，
+        self.escape_plus = config.ESCAPE_PLUS  # 是否转义加号，
+        self.escape_dash = config.ESCAPE_DASH  # 是否转义减号，
+
+        self.links_each_paragraph = config.LINKS_EACH_PARAGRAPH  # 每段是否包含链接，
+        self.body_width = bodywidth  # 文本宽度，
+        self.skip_internal_links = config.SKIP_INTERNAL_LINKS  # 是否跳过内部链接，
+        self.inline_links = config.INLINE_LINKS  # 链接是否内联，
+        self.protect_links = config.PROTECT_LINKS  # 是否保护链接，
+        self.google_list_indent = config.GOOGLE_LIST_INDENT  # Google 列表缩进，
+        self.ignore_links = config.IGNORE_ANCHORS  # 是否忽略链接，
+        self.ignore_mailto_links = config.IGNORE_MAILTO_LINKS  # 是否忽略 mailto 链接，
+        self.ignore_images = config.IGNORE_IMAGES  # 是否忽略图片，
+        self.images_as_html = config.IMAGES_AS_HTML  # 图片是否作为 HTML，
+        self.images_to_alt = config.IMAGES_TO_ALT  # 图片是否转换为 alt 文本，
+        self.images_with_size = config.IMAGES_WITH_SIZE  # 图片是否包含尺寸，
+        self.ignore_emphasis = config.IGNORE_EMPHASIS  # 是否忽略强调，
+        self.bypass_tables = config.BYPASS_TABLES  # 是否绕过表格，
+        self.ignore_tables = config.IGNORE_TABLES  # 是否忽略表格，
+        self.google_doc = False  # 是否为 Google 文档，
+        self.ul_item_mark = "*"  # 无序列表项标记，
+        self.emphasis_mark = "_"  # 强调标记，
+        self.strong_mark = "**"  # 强调标记，
+        self.single_line_break = config.SINGLE_LINE_BREAK  # 是否使用单行换行，
+        self.use_automatic_links = config.USE_AUTOMATIC_LINKS  # 是否使用自动链接，
+        self.hide_strikethrough = False  # 是否隐藏删除线，
+        self.mark_code = config.MARK_CODE  # 是否标记代码，
+        self.wrap_list_items = config.WRAP_LIST_ITEMS  # 列表项是否换行，
+        self.wrap_links = config.WRAP_LINKS  # 链接是否换行，
+        self.wrap_tables = config.WRAP_TABLES  # 表格是否换行
+        self.pad_tables = config.PAD_TABLES  # 表格是否填充，
+        self.default_image_alt = config.DEFAULT_IMAGE_ALT  # 默认图片 alt 文本，
+        self.tag_callback = None  # 标签回调函数
+        self.open_quote = config.OPEN_QUOTE  # 开启引号，
+        self.close_quote = config.CLOSE_QUOTE  # 关闭引号，
+        self.include_sup_sub = config.INCLUDE_SUP_SUB  # 是否包含上标和下标，
+
+
+        # 如果out为None，则将self.out赋值为self.outtextf
         if out is None:
             self.out = self.outtextf
+        # 否则，将self.out赋值为out
         else:
             self.out = out
 
@@ -142,10 +170,24 @@ class HTML2Text(html.parser.HTMLParser):
 
         config.UNIFIABLE["nbsp"] = "&nbsp_place_holder;"
 
-    def update_params(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value) 
-    
+def update_params(self, **kwargs):
+    """
+    更新实例的属性。
+
+    该方法通过接受关键字参数来更新实例的属性。关键字参数的键应对应于实例属性的名称，
+    值则用于更新这些属性的值。这是一种动态更新实例属性的灵活方式。
+
+    参数:
+    - **kwargs: 包含一个或多个属性-值对的关键字参数。关键字参数的键应为属性名，值为要设置的新值。
+
+    返回:
+    该方法没有返回值。它的主要作用是更新实例的属性。
+    """
+    # 遍历关键字参数中的每个属性-值对
+    for key, value in kwargs.items():
+        # 使用setattr函数动态地设置实例的属性
+        setattr(self, key, value)
+
     def feed(self, data: str) -> None:
         data = data.replace("</' + 'script>", "</ignore>")
         super().feed(data)
