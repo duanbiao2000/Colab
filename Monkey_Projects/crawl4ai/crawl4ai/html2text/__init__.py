@@ -207,25 +207,37 @@ def update_params(self, **kwargs):
         if s:
             self.lastWasNL = s[-1] == "\n"
 
-    def finish(self) -> str:
-        self.close()
+def finish(self) -> str:
+    """
+    Finalizes the processing, closes resources, and generates the final output string.
 
-        self.pbr()
-        self.o("", force="end")
+    This function is responsible for closing the resource, processing the final steps,
+    and returning the processed output string. It also handles the replacement of specific
+    placeholders in the text based on the settings.
+    """
+    # Close the resource to release it.
+    self.close()
 
-        outtext = "".join(self.outtextlist)
+    # Perform post-processing and output an empty string to indicate the end.
+    self.pbr()
+    self.o("", force="end")
 
-        if self.unicode_snob:
-            nbsp = html.entities.html5["nbsp;"]
-        else:
-            nbsp = " "
-        outtext = outtext.replace("&nbsp_place_holder;", nbsp)
+    # Join the list of output text into a single string.
+    outtext = "".join(self.outtextlist)
 
-        # Clear self.outtextlist to avoid memory leak of its content to
-        # the next handling.
-        self.outtextlist = []
+    # Determine the replacement for the non-breaking space based on the unicode_snob setting.
+    if self.unicode_snob:
+        nbsp = html.entities.html5["nbsp;"]
+    else:
+        nbsp = " "
+    # Replace the placeholder in the text with the appropriate non-breaking space.
+    outtext = outtext.replace("&nbsp_place_holder;", nbsp)
 
-        return outtext
+    # Clear self.outtextlist to avoid memory leak of its content to the next handling.
+    self.outtextlist = []
+
+    # Return the processed output string.
+    return outtext
 
     def handle_charref(self, c: str) -> None:
         self.handle_data(self.charref(c), True)
@@ -813,16 +825,18 @@ def update_params(self, **kwargs):
                 if lstripped_data != "":
                     self.drop_white_space = 0
 
-            if puredata and not self.pre:
-                # This is a very dangerous call ... it could mess up
-                # all handling of &nbsp; when not handled properly
-                # (see entityref)
-                data = re.sub(r"\s+", r" ", data)
-                if data and data[0] == " ":
-                    self.space = True
-                    data = data[1:]
-            if not data and not force:
-                return
+# 当 puredata 为 True 且 self.pre 为 False 时处理数据
+if puredata and not self.pre:
+    # 这是一个非常危险的调用... 如果处理不当可能会破坏所有 &nbsp; 的处理
+    # (参见 entityref)
+    data = re.sub(r"\s+", r" ", data)
+    # 检查数据的开头是否为空格
+    if data and data[0] == " ":
+        self.space = True
+        data = data[1:]
+# 如果数据为空且 force 标志为 False，则终止函数执行
+if not data and not force:
+    return
 
             if self.startpre:
                 # self.out(" :") #TODO: not output when already one there
