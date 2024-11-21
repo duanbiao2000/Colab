@@ -1,62 +1,33 @@
 """html2text: Turn HTML into equivalent Markdown-structured text."""
 
-# 导入html实体
 import html.entities
-# 导入html解析器
 import html.parser
-# 导入正则表达式
 import re
-# 导入字符串
 import string
-# 导入url解析器
 from urllib.parse import urlparse
-# 导入文本包装器
 from textwrap import wrap
-# 导入类型提示
 from typing import Dict, List, Optional, Tuple, Union
 
-# 从当前目录导入配置
 from . import config
-# 从当前目录导入类型提示
 from ._typing import OutCallback
-# 从当前目录导入元素
 from .elements import AnchorElement, ListElement
-# 从当前目录导入工具
-# 从当前目录下的utils模块中导入以下函数
 from .utils import (
-    # 智障CSS解析器
     dumb_css_parser,
-    # 元素样式
     element_style,
-    # 转义Markdown
     escape_md,
-    # 转义Markdown部分
     escape_md_section,
-    # 谷歌固定宽度字体
     google_fixed_width_font,
-    # 谷歌是否有高度
     google_has_height,
-    # 谷歌列表样式
     google_list_style,
-    # 谷歌文本强调
     google_text_emphasis,
-    # HN
     hn,
-    # 列表编号起始值
     list_numbering_start,
-    # 在文本中填充表格
     pad_tables_in_text,
-    # 跳过包装
     skipwrap,
-    # 可统一化n
     unifiable_n,
 )
 
 __version__ = (2024, 2, 26)
-
-
-# TODO:
-# Support decoded entities with UNIFIABLE.
 
 
 class HTML2Text(html.parser.HTMLParser):
@@ -66,72 +37,55 @@ class HTML2Text(html.parser.HTMLParser):
         baseurl: str = "",
         bodywidth: int = config.BODY_WIDTH,
     ) -> None:
-        """
-        Input parameters:
-            out: possible custom replacement for self.outtextf (which
-                 appends lines of text).
-            baseurl: base URL of the document we process
-        """
         super().__init__(convert_charrefs=False)
 
-        # 配置选项
-        self.split_next_td = False  # 是否在下一个 td 标签处分割
-        self.td_count = 0  # 当前 td 标签计数
-        self.table_start = False  # 表格是否开始
-        self.unicode_snob = config.UNICODE_SNOB  # 是否使用 Unicode 字符，
+        self.split_next_td = False
+        self.td_count = 0
+        self.table_start = False
+        self.unicode_snob = config.UNICODE_SNOB
+        self.escape_snob = config.ESCAPE_SNOB
+        self.escape_backslash = config.ESCAPE_BACKSLASH
+        self.escape_dot = config.ESCAPE_DOT
+        self.escape_plus = config.ESCAPE_PLUS
+        self.escape_dash = config.ESCAPE_DASH
+        self.links_each_paragraph = config.LINKS_EACH_PARAGRAPH
+        self.body_width = bodywidth
+        self.skip_internal_links = config.SKIP_INTERNAL_LINKS
+        self.inline_links = config.INLINE_LINKS
+        self.protect_links = config.PROTECT_LINKS
+        self.google_list_indent = config.GOOGLE_LIST_INDENT
+        self.ignore_links = config.IGNORE_ANCHORS
+        self.ignore_mailto_links = config.IGNORE_MAILTO_LINKS
+        self.ignore_images = config.IGNORE_IMAGES
+        self.images_as_html = config.IMAGES_AS_HTML
+        self.images_to_alt = config.IMAGES_TO_ALT
+        self.images_with_size = config.IMAGES_WITH_SIZE
+        self.ignore_emphasis = config.IGNORE_EMPHASIS
+        self.bypass_tables = config.BYPASS_TABLES
+        self.ignore_tables = config.IGNORE_TABLES
+        self.google_doc = False
+        self.ul_item_mark = "*"
+        self.emphasis_mark = "_"
+        self.strong_mark = "**"
+        self.single_line_break = config.SINGLE_LINE_BREAK
+        self.use_automatic_links = config.USE_AUTOMATIC_LINKS
+        self.hide_strikethrough = False
+        self.mark_code = config.MARK_CODE
+        self.wrap_list_items = config.WRAP_LIST_ITEMS
+        self.wrap_links = config.WRAP_LINKS
+        self.wrap_tables = config.WRAP_TABLES
+        self.pad_tables = config.PAD_TABLES
+        self.default_image_alt = config.DEFAULT_IMAGE_ALT
+        self.tag_callback = None
+        self.open_quote = config.OPEN_QUOTE
+        self.close_quote = config.CLOSE_QUOTE
+        self.include_sup_sub = config.INCLUDE_SUP_SUB
 
-        self.escape_snob = config.ESCAPE_SNOB  # 是否转义特殊字符，
-        self.escape_backslash = config.ESCAPE_BACKSLASH  # 是否转义反斜杠，
-        self.escape_dot = config.ESCAPE_DOT  # 是否转义点号，
-        self.escape_plus = config.ESCAPE_PLUS  # 是否转义加号，
-        self.escape_dash = config.ESCAPE_DASH  # 是否转义减号，
-
-        self.links_each_paragraph = config.LINKS_EACH_PARAGRAPH  # 每段是否包含链接，
-        self.body_width = bodywidth  # 文本宽度，
-        self.skip_internal_links = config.SKIP_INTERNAL_LINKS  # 是否跳过内部链接，
-        self.inline_links = config.INLINE_LINKS  # 链接是否内联，
-        self.protect_links = config.PROTECT_LINKS  # 是否保护链接，
-        self.google_list_indent = config.GOOGLE_LIST_INDENT  # Google 列表缩进，
-        self.ignore_links = config.IGNORE_ANCHORS  # 是否忽略链接，
-        self.ignore_mailto_links = config.IGNORE_MAILTO_LINKS  # 是否忽略 mailto 链接，
-        self.ignore_images = config.IGNORE_IMAGES  # 是否忽略图片，
-        self.images_as_html = config.IMAGES_AS_HTML  # 图片是否作为 HTML，
-        self.images_to_alt = config.IMAGES_TO_ALT  # 图片是否转换为 alt 文本，
-        self.images_with_size = config.IMAGES_WITH_SIZE  # 图片是否包含尺寸，
-        self.ignore_emphasis = config.IGNORE_EMPHASIS  # 是否忽略强调，
-        self.bypass_tables = config.BYPASS_TABLES  # 是否绕过表格，
-        self.ignore_tables = config.IGNORE_TABLES  # 是否忽略表格，
-        self.google_doc = False  # 是否为 Google 文档，
-        self.ul_item_mark = "*"  # 无序列表项标记，
-        self.emphasis_mark = "_"  # 强调标记，
-        self.strong_mark = "**"  # 强调标记，
-        self.single_line_break = config.SINGLE_LINE_BREAK  # 是否使用单行换行，
-        self.use_automatic_links = config.USE_AUTOMATIC_LINKS  # 是否使用自动链接，
-        self.hide_strikethrough = False  # 是否隐藏删除线，
-        self.mark_code = config.MARK_CODE  # 是否标记代码，
-        self.wrap_list_items = config.WRAP_LIST_ITEMS  # 列表项是否换行，
-        self.wrap_links = config.WRAP_LINKS  # 链接是否换行，
-        self.wrap_tables = config.WRAP_TABLES  # 表格是否换行
-        self.pad_tables = config.PAD_TABLES  # 表格是否填充，
-        self.default_image_alt = config.DEFAULT_IMAGE_ALT  # 默认图片 alt 文本，
-        self.tag_callback = None  # 标签回调函数
-        self.open_quote = config.OPEN_QUOTE  # 开启引号，
-        self.close_quote = config.CLOSE_QUOTE  # 关闭引号，
-        self.include_sup_sub = config.INCLUDE_SUP_SUB  # 是否包含上标和下标，
-
-
-        # 如果out为None，则将self.out赋值为self.outtextf
-        if out is None:
-            self.out = self.outtextf
-        # 否则，将self.out赋值为out
-        else:
-            self.out = out
-
-        # empty list to store output characters before they are "joined"
+        self.out = self.outtextf if out is None else out
         self.outtextlist: List[str] = []
 
         self.quiet = 0
-        self.p_p = 0  # number of newline character to print before next output
+        self.p_p = 0
         self.outcount = 0
         self.start = True
         self.space = False
@@ -156,11 +110,8 @@ class HTML2Text(html.parser.HTMLParser):
         self.emphasis = 0
         self.drop_white_space = 0
         self.inheader = False
-        # Current abbreviation definition
         self.abbr_title: Optional[str] = None
-        # Last inner HTML (for abbr being defined)
         self.abbr_data: Optional[str] = None
-        # Stack of abbreviations to write later
         self.abbr_list: Dict[str, str] = {}
         self.baseurl = baseurl
         self.stressed = False
@@ -170,23 +121,9 @@ class HTML2Text(html.parser.HTMLParser):
 
         config.UNIFIABLE["nbsp"] = "&nbsp_place_holder;"
 
-def update_params(self, **kwargs):
-    """
-    更新实例的属性。
-
-    该方法通过接受关键字参数来更新实例的属性。关键字参数的键应对应于实例属性的名称，
-    值则用于更新这些属性的值。这是一种动态更新实例属性的灵活方式。
-
-    参数:
-    - **kwargs: 包含一个或多个属性-值对的关键字参数。关键字参数的键应为属性名，值为要设置的新值。
-
-    返回:
-    该方法没有返回值。它的主要作用是更新实例的属性。
-    """
-    # 遍历关键字参数中的每个属性-值对
-    for key, value in kwargs.items():
-        # 使用setattr函数动态地设置实例的属性
-        setattr(self, key, value)
+    def update_params(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
     def feed(self, data: str) -> None:
         data = data.replace("</' + 'script>", "</ignore>")
@@ -197,61 +134,27 @@ def update_params(self, **kwargs):
         self.feed(data)
         self.feed("")
         markdown = self.optwrap(self.finish())
-        if self.pad_tables:
-            return pad_tables_in_text(markdown)
-        else:
-            return markdown
+        return pad_tables_in_text(markdown) if self.pad_tables else markdown
 
     def outtextf(self, s: str) -> None:
         self.outtextlist.append(s)
         if s:
             self.lastWasNL = s[-1] == "\n"
 
-def finish(self) -> str:
-    """
-    Finalizes the processing, closes resources, and generates the final output string.
-
-    This function is responsible for closing the resource, processing the final steps,
-    and returning the processed output string. It also handles the replacement of specific
-    placeholders in the text based on the settings.
-    """
-    # Close the resource to release it.
-    self.close()
-
-    # Perform post-processing and output an empty string to indicate the end.
-    self.pbr()
-    self.o("", force="end")
-
-    # Join the list of output text into a single string.
-    outtext = "".join(self.outtextlist)
-
-    # Determine the replacement for the non-breaking space based on the unicode_snob setting.
-    if self.unicode_snob:
-        nbsp = html.entities.html5["nbsp;"]
-    else:
-        nbsp = " "
-    # Replace the placeholder in the text with the appropriate non-breaking space.
-    outtext = outtext.replace("&nbsp_place_holder;", nbsp)
-
-    # Clear self.outtextlist to avoid memory leak of its content to the next handling.
-    self.outtextlist = []
-
-    # Return the processed output string.
-    return outtext
+    def finish(self) -> str:
+        self.close()
+        self.pbr()
+        self.o("", force="end")
+        outtext = "".join(self.outtextlist)
+        nbsp = html.entities.html5["nbsp;"] if self.unicode_snob else " "
+        self.outtextlist = []
+        return outtext.replace("&nbsp_place_holder;", nbsp)
 
     def handle_charref(self, c: str) -> None:
         self.handle_data(self.charref(c), True)
 
     def handle_entityref(self, c: str) -> None:
-        ref = self.entityref(c)
-
-        # ref may be an empty string (e.g. for &lrm;/&rlm; markers that should
-        # not contribute to the final output).
-        # self.handle_data cannot handle a zero-length string right after a
-        # stressed tag or mid-text within a stressed tag (text get split and
-        # self.stressed/self.preceding_stressed gets switched after the first
-        # part of that text).
-        if ref:
+        if ref := self.entityref(c):
             self.handle_data(ref, True)
 
     def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
@@ -261,51 +164,34 @@ def finish(self) -> str:
         self.handle_tag(tag, {}, start=False)
 
     def previousIndex(self, attrs: Dict[str, Optional[str]]) -> Optional[int]:
-        """
-        :type attrs: dict
-
-        :returns: The index of certain set of attributes (of a link) in the
-        self.a list. If the set of attributes is not found, returns None
-        :rtype: int
-        """
         if "href" not in attrs:
             return None
 
-        match = False
         for i, a in enumerate(self.a):
-            if "href" in a.attrs and a.attrs["href"] == attrs["href"]:
-                if "title" in a.attrs or "title" in attrs:
-                    if (
-                        "title" in a.attrs
-                        and "title" in attrs
-                        and a.attrs["title"] == attrs["title"]
-                    ):
-                        match = True
-                else:
-                    match = True
-
-            if match:
+            if (
+                "href" in a.attrs
+                and a.attrs["href"] == attrs["href"]
+                and (
+                    "title" in a.attrs
+                    and "title" in attrs
+                    and a.attrs["title"] == attrs["title"]
+                )
+            ):
                 return i
         return None
 
     def handle_emphasis(
         self, start: bool, tag_style: Dict[str, str], parent_style: Dict[str, str]
     ) -> None:
-        """
-        Handles various text emphases
-        """
         tag_emphasis = google_text_emphasis(tag_style)
         parent_emphasis = google_text_emphasis(parent_style)
 
-        # handle Google's text emphasis
         strikethrough = "line-through" in tag_emphasis and self.hide_strikethrough
 
-        # google and others may mark a font's weight as `bold` or `700`
-        bold = False
-        for bold_marker in config.BOLD_TEXT_STYLE_VALUES:
-            bold = bold_marker in tag_emphasis and bold_marker not in parent_emphasis
-            if bold:
-                break
+        bold = any(
+            bold_marker in tag_emphasis and bold_marker not in parent_emphasis
+            for bold_marker in config.BOLD_TEXT_STYLE_VALUES
+        )
 
         italic = "italic" in tag_emphasis and "italic" not in parent_emphasis
         fixed = (
@@ -315,8 +201,6 @@ def finish(self) -> str:
         )
 
         if start:
-            # crossed-out text must be handled before other attributes
-            # in order not to output qualifiers unnecessarily
             if bold or italic or fixed:
                 self.emphasis += 1
             if strikethrough:
@@ -333,29 +217,24 @@ def finish(self) -> str:
                 self.code = True
         else:
             if bold or italic or fixed:
-                # there must not be whitespace before closing emphasis mark
                 self.emphasis -= 1
                 self.space = False
             if fixed:
                 if self.drop_white_space:
-                    # empty emphasis, drop it
                     self.drop_white_space -= 1
                 else:
                     self.o("`")
                 self.code = False
             if bold:
                 if self.drop_white_space:
-                    # empty emphasis, drop it
                     self.drop_white_space -= 1
                 else:
                     self.o(self.strong_mark)
             if italic:
                 if self.drop_white_space:
-                    # empty emphasis, drop it
                     self.drop_white_space -= 1
                 else:
                     self.o(self.emphasis_mark)
-            # space is only allowed after *all* emphasis marks
             if (bold or italic) and not self.emphasis:
                 self.o(" ")
             if strikethrough:
@@ -370,8 +249,6 @@ def finish(self) -> str:
             if self.tag_callback(self, tag, attrs, start) is True:
                 return
 
-        # first thing inside the anchor tag is another tag
-        # that produces some output
         if (
             start
             and self.maybe_automatic_link is not None
@@ -383,10 +260,6 @@ def finish(self) -> str:
             self.empty_link = False
 
         if self.google_doc:
-            # the attrs parameter is empty for a closing tag. in addition, we
-            # need the attributes of the parent nodes in order to get a
-            # complete style description for the current element. we assume
-            # that google docs export well formed html.
             parent_style: Dict[str, str] = {}
             if start:
                 if self.tag_stack:
@@ -401,20 +274,18 @@ def finish(self) -> str:
                     parent_style = self.tag_stack[-1][2]
 
         if hn(tag):
-            # check if nh is inside of an 'a' tag (incorrect but found in the wild)
             if self.astack:
                 if start:
                     self.inheader = True
-                    # are inside link name, so only add '#' if it can appear before '['
                     if self.outtextlist and self.outtextlist[-1] == "[":
                         self.outtextlist.pop()
                         self.space = False
                         self.o(hn(tag) * "#" + " ")
                         self.o("[")
                 else:
-                    self.p_p = 0  # don't break up link name
+                    self.p_p = 0
                     self.inheader = False
-                    return  # prevent redundant emphasis marks on headers
+                    return
             else:
                 self.p()
                 if start:
@@ -422,7 +293,7 @@ def finish(self) -> str:
                     self.o(hn(tag) * "#" + " ")
                 else:
                     self.inheader = False
-                    return  # prevent redundant emphasis marks on headers
+                    return
 
         if tag in ["p", "div"]:
             if self.google_doc:
@@ -461,7 +332,7 @@ def finish(self) -> str:
                 self.style -= 1
 
         if tag in ["body"]:
-            self.quiet = 0  # sites like 9rules.com never close <head>
+            self.quiet = 0
 
         if tag == "blockquote":
             if start:
@@ -474,11 +345,6 @@ def finish(self) -> str:
                 self.p()
 
         if tag in ["em", "i", "u"] and not self.ignore_emphasis:
-            # Separate with a space if we immediately follow an alphanumeric
-            # character, since otherwise Markdown won't render the emphasis
-            # marks, and we'll be left with eg 'foo_bar_' visible.
-            # (Don't add a space otherwise, though, since there isn't one in the
-            # original HTML.)
             if (
                 start
                 and self.preceding_data
@@ -495,16 +361,9 @@ def finish(self) -> str:
                 self.stressed = True
 
         if tag in ["strong", "b"] and not self.ignore_emphasis:
-            # Separate with space if we immediately follow an * character, since
-            # without it, Markdown won't render the resulting *** correctly.
-            # (Don't add a space otherwise, though, since there isn't one in the
-            # original HTML.)
             if (
                 start
                 and self.preceding_data
-                # When `self.strong_mark` is set to empty, the next condition
-                # will cause IndexError since it's trying to match the data
-                # with the first character of the `self.strong_mark`.
                 and len(self.strong_mark) > 0
                 and self.preceding_data[-1] == self.strong_mark[0]
             ):
@@ -528,13 +387,11 @@ def finish(self) -> str:
             if start:
                 self.stressed = True
 
-        if self.google_doc:
-            if not self.inheader:
-                # handle some font attributes, but leave headers clean
-                self.handle_emphasis(start, tag_style, parent_style)
+        if self.google_doc and not self.inheader:
+            self.handle_emphasis(start, tag_style, parent_style)
 
         if tag in ["kbd", "code", "tt"] and not self.pre:
-            self.o("`")  # TODO: `` `this` ``
+            self.o("`")
             self.code = not self.code
 
         if tag == "abbr":
@@ -559,8 +416,8 @@ def finish(self) -> str:
 
         def link_url(self: HTML2Text, link: str, title: str = "") -> None:
             url = urlparse.urljoin(self.baseurl, link)
-            title = ' "{}"'.format(title) if title.strip() else ""
-            self.o("]({url}{title})".format(url=escape_md(url), title=title))
+            title = f' "{title}"' if title.strip() else ""
+            self.o(f"]({escape_md(url)}{title})")
 
         if tag == "a" and not self.ignore_links:
             if start:
@@ -611,8 +468,6 @@ def finish(self) -> str:
                     attrs["href"] = attrs["src"]
                 alt = attrs.get("alt") or self.default_image_alt
 
-                # If we have images_with_size, write raw html including width,
-                # height, and alt attributes
                 if self.images_as_html or (
                     self.images_with_size and ("width" in attrs or "height" in attrs)
                 ):
@@ -626,7 +481,6 @@ def finish(self) -> str:
                     self.o("/>")
                     return
 
-                # If we have a link to create, output the start
                 if self.maybe_automatic_link is not None:
                     href = self.maybe_automatic_link
                     if (
@@ -642,8 +496,6 @@ def finish(self) -> str:
                         self.maybe_automatic_link = None
                         self.empty_link = False
 
-                # If we have images_to_alt, we discard the image itself,
-                # considering only the alt text.
                 if self.images_to_alt:
                     self.o(escape_md(alt))
                 else:
@@ -673,7 +525,6 @@ def finish(self) -> str:
             self.pbr()
 
         if tag in ["ol", "ul"]:
-            # Google Docs create sub lists as top level lists
             if not self.list and not self.lastWasList:
                 self.p()
             if start:
@@ -702,10 +553,6 @@ def finish(self) -> str:
                 if self.google_doc:
                     self.o("  " * self.google_nest_count(tag_style))
                 else:
-                    # Indent two spaces per list, except use three spaces for an
-                    # unordered list inside an ordered list.
-                    # https://spec.commonmark.org/0.28/#motivation
-                    # TODO: line up <ol><li>s > 9 correctly.
                     parent_list = None
                     for list in self.list:
                         self.o(
@@ -753,7 +600,6 @@ def finish(self) -> str:
                             self.o("  \n")
                     else:
                         if self.pad_tables:
-                            # add break in case the table is empty or its 1 row table
                             self.soft_br()
                             self.o("</" + config.TABLE_MARKER_FOR_PAD + ">")
                             self.o("  \n")
@@ -768,7 +614,6 @@ def finish(self) -> str:
                     self.split_next_td = False
                     self.soft_br()
                 if tag == "tr" and not start and self.table_start:
-                    # Underline table header
                     self.o("|".join(["---"] * self.td_count))
                     self.soft_br()
                     self.table_start = False
@@ -791,57 +636,41 @@ def finish(self) -> str:
             else:
                 self.o("</{}>".format(tag))
 
-    # TODO: Add docstring for these one letter functions
     def pbr(self) -> None:
-        "Pretty print has a line break"
         if self.p_p == 0:
             self.p_p = 1
 
     def p(self) -> None:
-        "Set pretty print to 1 or 2 lines"
         self.p_p = 1 if self.single_line_break else 2
 
     def soft_br(self) -> None:
-        "Soft breaks"
         self.pbr()
         self.br_toggle = "  "
 
     def o(
         self, data: str, puredata: bool = False, force: Union[bool, str] = False
     ) -> None:
-        """
-        Deal with indentation and whitespace
-        """
         if self.abbr_data is not None:
             self.abbr_data += data
 
         if not self.quiet:
             if self.google_doc:
-                # prevent white space immediately after 'begin emphasis'
-                # marks ('**' and '_')
                 lstripped_data = data.lstrip()
                 if self.drop_white_space and not (self.pre or self.code):
                     data = lstripped_data
                 if lstripped_data != "":
                     self.drop_white_space = 0
 
-# 当 puredata 为 True 且 self.pre 为 False 时处理数据
-if puredata and not self.pre:
-    # 这是一个非常危险的调用... 如果处理不当可能会破坏所有 &nbsp; 的处理
-    # (参见 entityref)
-    data = re.sub(r"\s+", r" ", data)
-    # 检查数据的开头是否为空格
-    if data and data[0] == " ":
-        self.space = True
-        data = data[1:]
-# 如果数据为空且 force 标志为 False，则终止函数执行
-if not data and not force:
-    return
+            if puredata and not self.pre:
+                data = re.sub(r"\s+", r" ", data)
+                if data and data[0] == " ":
+                    self.space = True
+                    data = data[1:]
+            if not data and not force:
+                return
 
             if self.startpre:
-                # self.out(" :") #TODO: not output when already one there
                 if not data.startswith("\n") and not data.startswith("\r\n"):
-                    # <pre>stuff...
                     data = "\n" + data
                 if self.mark_code:
                     self.out("\n[code]")
@@ -854,14 +683,12 @@ if not data and not force:
             if self.pre:
                 if not self.list:
                     bq += "    "
-                # else: list content is already partially indented
                 bq += "    " * len(self.list)
                 data = data.replace("\n", "\n" + bq)
 
             if self.startpre:
                 self.startpre = False
                 if self.list:
-                    # use existing initial indentation
                     data = data.lstrip("\n")
 
             if self.start:
@@ -870,7 +697,6 @@ if not data and not force:
                 self.start = False
 
             if force == "end":
-                # It's the end.
                 self.p_p = 0
                 self.out("\n")
                 self.space = False
@@ -906,7 +732,6 @@ if not data and not force:
                     else:
                         newa.append(link)
 
-                # Don't need an extra line when nothing was done.
                 if self.a != newa:
                     self.out("\n")
 
@@ -922,8 +747,6 @@ if not data and not force:
 
     def handle_data(self, data: str, entity_char: bool = False) -> None:
         if not data:
-            # Data may be empty for some HTML entities. For example,
-            # LEFT-TO-RIGHT MARK.
             return
 
         if self.stressed:
@@ -936,7 +759,6 @@ if not data and not force:
                 and not hn(self.current_tag)
                 and self.current_tag not in ["a", "code", "pre"]
             ):
-                # should match a letter or common punctuation
                 data = " " + data
             self.preceding_stressed = False
 
@@ -959,63 +781,48 @@ if not data and not force:
                 self.empty_link = False
 
         if not self.code and not self.pre and not entity_char:
-            data = escape_md_section(data, snob=self.escape_snob, escape_dot=self.escape_dot, escape_plus=self.escape_plus, escape_dash=self.escape_dash)
+            data = escape_md_section(
+                data,
+                snob=self.escape_snob,
+                escape_dot=self.escape_dot,
+                escape_plus=self.escape_plus,
+                escape_dash=self.escape_dash,
+            )
         self.preceding_data = data
         self.o(data, puredata=True)
 
     def charref(self, name: str) -> str:
-        if name[0] in ["x", "X"]:
-            c = int(name[1:], 16)
-        else:
-            c = int(name)
-
+        c = int(name[1:], 16) if name[0] in ["x", "X"] else int(name)
         if not self.unicode_snob and c in unifiable_n:
             return unifiable_n[c]
         else:
             try:
                 return chr(c)
-            except ValueError:  # invalid unicode
+            except ValueError:
                 return ""
 
     def entityref(self, c: str) -> str:
         if not self.unicode_snob and c in config.UNIFIABLE:
             return config.UNIFIABLE[c]
         try:
-            ch = html.entities.html5[c + ";"]
+            ch = html.entities.html5[f"{c};"]
         except KeyError:
-            return "&" + c + ";"
+            return f"&{c};"
         return config.UNIFIABLE[c] if c == "nbsp" else ch
 
     def google_nest_count(self, style: Dict[str, str]) -> int:
-        """
-        Calculate the nesting count of google doc lists
-
-        :type style: dict
-
-        :rtype: int
-        """
-        nest_count = 0
-        if "margin-left" in style:
-            nest_count = int(style["margin-left"][:-2]) // self.google_list_indent
-
-        return nest_count
+        return (
+            int(style["margin-left"][:-2]) // self.google_list_indent
+            if "margin-left" in style
+            else 0
+        )
 
     def optwrap(self, text: str) -> str:
-        """
-        Wrap all paragraphs in the provided text.
-
-        :type text: str
-
-        :rtype: str
-        """
         if not self.body_width:
             return text
 
         result = ""
         newlines = 0
-        # I cannot think of a better solution for now.
-        # To avoid the non-wrap behaviour for entire paras
-        # because of the presence of a link in it
         if not self.wrap_links:
             self.inline_links = False
         for para in text.split("\n"):
@@ -1025,12 +832,8 @@ if not data and not force:
                 ):
                     indent = ""
                     if para.startswith("  " + self.ul_item_mark):
-                        # list item continuation: add a double indent to the
-                        # new lines
                         indent = "    "
                     elif para.startswith("> "):
-                        # blockquote continuation: add the greater than symbol
-                        # to the new lines
                         indent = "> "
                     wrapped = wrap(
                         para,
@@ -1049,10 +852,6 @@ if not data and not force:
                         result += "\n\n"
                         newlines = 2
                 else:
-                    # Warning for the tempted!!!
-                    # Be aware that obvious replacement of this with
-                    # line.isspace()
-                    # DOES NOT work! Explanations are welcome.
                     if not config.RE_SPACE.match(para):
                         result += para + "\n"
                         newlines = 1
@@ -1064,8 +863,23 @@ if not data and not force:
 
 
 def html2text(html: str, baseurl: str = "", bodywidth: Optional[int] = None) -> str:
+    """
+    将HTML内容转换为纯文本。
+
+    该函数使用`HTML2Text`类将给定的HTML字符串转换为纯文本格式。它允许通过`baseurl`参数指定基本URL，
+    以便正确处理相对链接。`bodywidth`参数用于指定输出文本的行宽度。
+
+    :param html: 待转换的HTML内容，作为字符串输入。
+    :param baseurl: 用于解析相对URL的基本URL，默认为空字符串。
+    :param bodywidth: 输出文本的行宽度。如果未提供，则使用`config.BODY_WIDTH`的值。
+    :return: 转换后的纯文本内容。
+    """
+    # 如果未提供bodywidth参数，则使用配置文件中的默认宽度
     if bodywidth is None:
         bodywidth = config.BODY_WIDTH
+
+    # 创建HTML2Text实例，配置baseurl和bodywidth
     h = HTML2Text(baseurl=baseurl, bodywidth=bodywidth)
 
+    # 使用实例处理输入的HTML内容并返回纯文本
     return h.handle(html)

@@ -20,13 +20,11 @@ def save_spacy_model_as_torch(nlp, model_dir="models/reuters"):
     with open(f"{model_dir}/vocab.txt", "w") as vocab_file:
         for word, idx in vocab.items():
             vocab_file.write(f"{word}\t{idx}\n")
-    
+
     print(f"Model weights and vocabulary saved to: {model_dir}")
 
 def extract_vocab(nlp):
-    # Extract vocabulary from the SpaCy model
-    vocab = {word: i for i, word in enumerate(nlp.vocab.strings)}
-    return vocab
+    return {word: i for i, word in enumerate(nlp.vocab.strings)}
 
 nlp = spacy.load("models/reuters")
 save_spacy_model_as_torch(nlp, model_dir="models")
@@ -126,15 +124,15 @@ def train_model(model_dir, additional_epochs=0):
 def load_model_and_predict(model_dir, text, tok_k = 3):
     # Load the trained model from the specified directory
     nlp = spacy.load(model_dir)
-    
+
     # Process the text with the loaded model
     doc = nlp(text)
-    
+
     # gee top 3 categories
     top_categories = sorted(doc.cats.items(), key=lambda x: x[1], reverse=True)[:tok_k]
     print(f"Top {tok_k} categories:")
-    
-    return top_categories    
+
+    return top_categories
 
 if __name__ == "__main__":
     train_and_save_reuters_model()

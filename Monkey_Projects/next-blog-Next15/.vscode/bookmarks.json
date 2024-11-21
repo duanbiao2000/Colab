@@ -1,0 +1,39 @@
+{
+	"files": [
+		{
+			"path": "src/app/search/page.jsx",
+			"bookmarks": [
+				{
+					"line": 123,
+					"column": 46,
+					"label": ""
+				},
+				{
+					"line": 126,
+					"column": 69,
+					"label": ""
+				}
+			]
+		},
+		{
+			"path": "src/app/post/[slug]/page.jsx",
+			"bookmarks": [
+				{
+					"line": 58,
+					"column": 6,
+					"label": ""
+				}
+			]
+		},
+		{
+			"path": "src/app/components/Header.jsx",
+			"bookmarks": [
+				{
+					"line": 49,
+					"column": 0,
+					"label": ""
+				}
+			]
+		}
+	]
+}
